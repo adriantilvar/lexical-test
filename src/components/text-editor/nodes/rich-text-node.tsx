@@ -5,9 +5,9 @@ import {
   TextNode,
 } from "lexical";
 
-export class FormattedTextNode extends TextNode {
+export class RichTextNode extends TextNode {
   $config() {
-    return this.config("formatted-text-node", { extends: TextNode });
+    return this.config("rich-text-node", { extends: TextNode });
   }
 
   createDOM(): HTMLElement {
@@ -47,12 +47,12 @@ export class FormattedTextNode extends TextNode {
   }
 }
 
-export function $createFormattedTextNode(text: string): FormattedTextNode {
-  return $create(FormattedTextNode).setTextContent(text);
+export function $createRichTextNode(text: string): RichTextNode {
+  return $create(RichTextNode).setTextContent(text);
 }
 
-export function $isFormattedTextNode(
+export function $isRichTextNode(
   node: LexicalNode | null | undefined,
-): node is FormattedTextNode {
-  return node instanceof FormattedTextNode;
+): node is RichTextNode {
+  return node instanceof RichTextNode;
 }

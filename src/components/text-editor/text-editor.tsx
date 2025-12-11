@@ -1,45 +1,45 @@
 "use client";
-import { CodeNode } from "@lexical/code";
-import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { $convertFromMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
+import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
-import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
+import { HeadingNode } from "@lexical/rich-text";
 import { ParagraphNode, TextNode } from "lexical";
 import { Loader } from "lucide-react";
 import dynamic from "next/dynamic";
 import { use } from "react";
+import { cn } from "@/lib/utils";
 import {
-  $createFormattedTextNode,
-  FormattedTextNode,
-} from "./nodes/formatted-text-node";
+  $createDraggableParagraph,
+  DraggableParagraph,
+} from "./nodes/draggable-paragraph-node";
+import { ImageNode } from "./nodes/image-node";
+import { $createRichTextNode, RichTextNode } from "./nodes/rich-text-node";
+import { DragAndDropPlugin } from "./plugins/drag-and-drop-plugin";
 import { LimitedHistoryPlugin } from "./plugins/history-plugin";
 import ToolbarPlugin from "./plugins/toolbar-plugin";
 
 const nodes = [
-  HeadingNode,
-  ParagraphNode,
-  FormattedTextNode,
-  QuoteNode,
-  LinkNode,
-  AutoLinkNode,
-  ListNode,
-  ListItemNode,
-  TableNode,
-  TableCellNode,
-  TableRowNode,
-  CodeNode,
+  DraggableParagraph,
+  {
+    replace: ParagraphNode,
+    with: (_node: ParagraphNode) => $createDraggableParagraph(),
+    withKlass: DraggableParagraph,
+  },
+  RichTextNode,
   {
     replace: TextNode,
-    with: (node: TextNode) => $createFormattedTextNode(node.getTextContent()),
-    withKlass: FormattedTextNode,
+    with: (node: TextNode) => $createRichTextNode(node.getTextContent()),
+    withKlass: RichTextNode,
   },
+  HeadingNode,
+  ListNode,
+  ListItemNode,
+  ImageNode,
 ];
 
 const theme = {};
@@ -66,13 +66,13 @@ function TextEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className={`w-4xl  h-full ${className}`}>
+      <div className={cn("w-6xl flex flex-col", className)}>
         <ToolbarPlugin />
-        <div className="border border-dashed relative">
+        <div className="border-2 border-dashed relative flex-1">
           <RichTextPlugin
             contentEditable={
               <ContentEditable
-                className="outline-none px-4 py-3 [&_span]:data-lexical-italic:italic [&_span]:data-lexical-bold:font-semibold [&_span]:data-lexical-strikethrough:line-through [&_span]:data-lexical-highlight:bg-amber-100 [&_span]:data-lexical-highlight:text-amber-900 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mb-1 [&_p]:text-lg"
+                className="outline-none px-4 py-3 [&_span]:data-lexical-italic:italic [&_span]:data-lexical-bold:font-semibold [&_span]:data-lexical-strikethrough:line-through [&_span]:data-lexical-highlight:bg-amber-100 [&_span]:data-lexical-highlight:text-amber-900 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-xl [&_h3]:font-semibold [&_h4]:font-semibold [&_h3]:mb-1 text-lg [&_ul]:list-disc [&_ol]:list-decimal grid grid-cols-12"
                 aria-placeholder={"You can start typing..."}
                 placeholder={
                   <div className="absolute left-4 top-3 select-none pointer-events-none text-zinc-400">
@@ -83,9 +83,10 @@ function TextEditor({
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
-          <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
-          <LimitedHistoryPlugin limit={30} />
+          <ListPlugin />
+          <DragAndDropPlugin />
           <AutoFocusPlugin />
+          <LimitedHistoryPlugin limit={30} />
         </div>
       </div>
     </LexicalComposer>

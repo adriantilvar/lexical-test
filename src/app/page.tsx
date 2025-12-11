@@ -9,10 +9,10 @@ export default function Home() {
   );
 
   return (
-    <div className="flex flex-col min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+    <div className="flex flex-col min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black py-12">
       <h1>Lexical Editor Test</h1>
 
-      <TextEditor initialContent={initialMarkdown} />
+      <TextEditor className="flex-1" initialContent={initialMarkdown} />
     </div>
   );
 }

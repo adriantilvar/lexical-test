@@ -1,7 +1,9 @@
 import { createCommand } from "lexical";
 
-export type BlockFormatType = "h2" | "h3" | "p";
+export type SupportedHeadingTag = "h2" | "h3" | "h4";
 
-export const FORMAT_BLOCK_COMMAND = createCommand<BlockFormatType>(
-  "FORMAT_BLOCK_COMMAND",
+export const INSERT_HEADING_COMMAND = createCommand<SupportedHeadingTag>(
+  "INSERT_HEADING_COMMAND",
 );
+
+export const INSERT_BODY_COMMAND = createCommand<"p">("INSERT_BODY_COMMAND");
