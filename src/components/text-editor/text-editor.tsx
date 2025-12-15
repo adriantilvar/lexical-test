@@ -11,7 +11,7 @@ import { HeadingNode } from "@lexical/rich-text";
 import { ParagraphNode, TextNode } from "lexical";
 import { Loader } from "lucide-react";
 import dynamic from "next/dynamic";
-import { use } from "react";
+import { use, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   $createDraggableParagraph,
@@ -66,13 +66,13 @@ function TextEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className={cn("w-6xl flex flex-col", className)}>
+      <div className={cn("w-4xl flex flex-col", className)}>
         <ToolbarPlugin />
         <div className="border-2 border-dashed relative flex-1">
           <RichTextPlugin
             contentEditable={
               <ContentEditable
-                className="outline-none px-4 py-3 [&_span]:data-lexical-italic:italic [&_span]:data-lexical-bold:font-semibold [&_span]:data-lexical-strikethrough:line-through [&_span]:data-lexical-highlight:bg-amber-100 [&_span]:data-lexical-highlight:text-amber-900 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-xl [&_h3]:font-semibold [&_h4]:font-semibold [&_h3]:mb-1 text-lg [&_ul]:list-disc [&_ol]:list-decimal grid grid-cols-12"
+                className="outline-none px-8 py-3 [&_span]:data-lexical-italic:italic [&_span]:data-lexical-bold:font-semibold [&_span]:data-lexical-strikethrough:line-through [&_span]:data-lexical-highlight:bg-amber-100 [&_span]:data-lexical-highlight:text-amber-900 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-xl [&_h3]:font-semibold [&_h4]:font-semibold [&_h3]:mb-1 text-lg [&_ul]:list-disc [&_ol]:list-decimal grid grid-cols-12"
                 aria-placeholder={"You can start typing..."}
                 placeholder={
                   <div className="absolute left-4 top-3 select-none pointer-events-none text-zinc-400">

@@ -1,9 +1,9 @@
 "use client";
 
-import { Dialog as DialogPrimitive } from "@base-ui-components/react/dialog";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 const Dialog = DialogPrimitive.Root;
 

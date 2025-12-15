@@ -10,7 +10,8 @@
     "format": "biome format --write"
   },
   "dependencies": {
-    "@base-ui-components/react": "1.0.0-rc.0",
+    "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
+    "@base-ui/react": "^1.0.0",
     "@lexical/code": "0.39.0",
     "@lexical/history": "0.39.0",
     "@lexical/link": "0.39.0",
