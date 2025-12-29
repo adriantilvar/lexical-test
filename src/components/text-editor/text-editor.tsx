@@ -11,12 +11,10 @@ import { HeadingNode } from "@lexical/rich-text";
 import { ParagraphNode, TextNode } from "lexical";
 import { Loader } from "lucide-react";
 import dynamic from "next/dynamic";
-import { use, useState } from "react";
+import { use } from "react";
 import { cn } from "@/lib/utils";
-import {
-  $createDraggableParagraph,
-  DraggableParagraph,
-} from "./nodes/draggable-paragraph-node";
+import { GridContainerNode } from "./nodes/grid-container-node";
+import { GridItemNode } from "./nodes/grid-item-node";
 import { ImageNode } from "./nodes/image-node";
 import { $createRichTextNode, RichTextNode } from "./nodes/rich-text-node";
 import { DragAndDropPlugin } from "./plugins/drag-and-drop-plugin";
@@ -24,12 +22,9 @@ import { LimitedHistoryPlugin } from "./plugins/history-plugin";
 import ToolbarPlugin from "./plugins/toolbar-plugin";
 
 const nodes = [
-  DraggableParagraph,
-  {
-    replace: ParagraphNode,
-    with: (_node: ParagraphNode) => $createDraggableParagraph(),
-    withKlass: DraggableParagraph,
-  },
+  GridContainerNode,
+  GridItemNode,
+  ParagraphNode,
   RichTextNode,
   {
     replace: TextNode,
@@ -72,7 +67,7 @@ function TextEditor({
           <RichTextPlugin
             contentEditable={
               <ContentEditable
-                className="outline-none px-8 py-3 [&_span]:data-lexical-italic:italic [&_span]:data-lexical-bold:font-semibold [&_span]:data-lexical-strikethrough:line-through [&_span]:data-lexical-highlight:bg-amber-100 [&_span]:data-lexical-highlight:text-amber-900 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-xl [&_h3]:font-semibold [&_h4]:font-semibold [&_h3]:mb-1 text-lg [&_ul]:list-disc [&_ol]:list-decimal grid grid-cols-12"
+                className="outline-none px-8 py-3 [&_span]:data-lexical-italic:italic [&_span]:data-lexical-bold:font-semibold [&_span]:data-lexical-strikethrough:line-through [&_span]:data-lexical-highlight:bg-amber-100 [&_span]:data-lexical-highlight:text-amber-900 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-xl [&_h3]:font-semibold [&_h4]:font-semibold [&_h3]:mb-1 text-lg [&_ul]:list-disc [&_ol]:list-decimal"
                 aria-placeholder={"You can start typing..."}
                 placeholder={
                   <div className="absolute left-4 top-3 select-none pointer-events-none text-zinc-400">

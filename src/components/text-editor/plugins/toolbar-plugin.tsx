@@ -171,10 +171,7 @@ const alignmentButtons: ToolbarCommand<ElementFormatType>[] = [
   },
 ];
 
-function ToolbarButton({
-  className,
-  ...props
-}: ComponentPropsWithRef<"button">) {
+function ToolbarButton({ className, ...props }: ComponentPropsWithRef<"button">) {
   return (
     <button
       type="button"
@@ -247,10 +244,7 @@ export default function ToolbarPlugin() {
         INSERT_HEADING_COMMAND,
         (payload) => {
           const selection = $getSelection();
-          if (
-            !$isRangeSelection(selection) ||
-            !isSupportedHeadingTag(payload)
-          ) {
+          if (!$isRangeSelection(selection) || !isSupportedHeadingTag(payload)) {
             return false;
           }
 
@@ -279,11 +273,7 @@ export default function ToolbarPlugin() {
           const selection = $getSelection();
           if (!$isRangeSelection(selection)) return false;
 
-          const imageNode = $createImageNode(
-            payload.src,
-            payload.alt,
-            payload.width,
-          );
+          const imageNode = $createImageNode(payload.src, payload.alt, payload.width);
           const emptyText = $createTextNode(" ");
           const emptyParagraph = $createParagraphNode();
           emptyParagraph.append(emptyText);
@@ -304,9 +294,7 @@ export default function ToolbarPlugin() {
           const selection = $getSelection();
           if (!$isRangeSelection(selection)) return false;
 
-          editor.update(() =>
-            $setBlocksType(selection, () => $createParagraphNode()),
-          );
+          editor.update(() => $setBlocksType(selection, () => $createParagraphNode()));
           return true;
         },
         COMMAND_PRIORITY_NORMAL,
@@ -429,9 +417,7 @@ export default function ToolbarPlugin() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Image</DialogTitle>
-            <DialogDescription>
-              Enter the image source URL and alternative text.
-            </DialogDescription>
+            <DialogDescription>Enter the image source URL and alternative text.</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-4 py-4">
@@ -441,9 +427,7 @@ export default function ToolbarPlugin() {
                 placeholder="https://example.com/image.jpg"
                 type="url"
                 value={imageData.src}
-                onChange={(e) =>
-                  setImageData((prev) => ({ ...prev, src: e.target.value }))
-                }
+                onChange={(e) => setImageData((prev) => ({ ...prev, src: e.target.value }))}
               />
             </Field>
 
@@ -453,9 +437,7 @@ export default function ToolbarPlugin() {
                 placeholder="Description of the image"
                 type="text"
                 value={imageData.alt}
-                onChange={(e) =>
-                  setImageData((prev) => ({ ...prev, alt: e.target.value }))
-                }
+                onChange={(e) => setImageData((prev) => ({ ...prev, alt: e.target.value }))}
               />
             </Field>
           </div>

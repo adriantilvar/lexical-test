@@ -1,0 +1,43 @@
+.lexical-block {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    background: var(--color-blue-200);
+    opacity: 0;
+  }
+
+  &[data-drag-edge="top"]::before {
+    opacity: 1;
+    top: calc(var(--spacing) * -1);
+    left: 0;
+    right: 0;
+    height: var(--spacing);
+  }
+
+  &[data-drag-edge="bottom"]::before {
+    opacity: 1;
+    bottom: calc(var(--spacing) * -1);
+    left: 0;
+    right: 0;
+    height: var(--spacing);
+  }
+
+  &[data-drag-edge="left"]::before {
+    opacity: 1;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--spacing) * -1.5);
+    width: var(--spacing);
+  }
+
+  &[data-drag-edge="right"]::before {
+    opacity: 1;
+    top: 0;
+    bottom: 0;
+    right: calc(var(--spacing) * -1.5);
+    width: var(--spacing);
+  }
+}

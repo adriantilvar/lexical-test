@@ -1,8 +1,9 @@
 import { $isListNode } from "@lexical/list";
 import { $isHeadingNode } from "@lexical/rich-text";
-import type { RangeSelection } from "lexical";
+import { $isParagraphNode, type RangeSelection } from "lexical";
 import type { SupportedHeadingTag } from "../commands/block-commands";
-import { $isDraggableParagraph } from "../nodes/draggable-paragraph-node";
+import { $isGridContainerNode } from "../nodes/grid-container-node";
+import { $isGridItemNode } from "../nodes/grid-item-node";
 import { BLOCK_TAGS } from "./const";
 import type { BlockTag } from "./types";
 
@@ -28,8 +29,9 @@ export function $getBlockTag(selection: RangeSelection): BlockTag {
   }
 
   if ($isListNode(block)) return block.getTag();
-
-  if ($isDraggableParagraph(block)) return "p";
+  if ($isParagraphNode(block)) return "p";
+  if ($isGridContainerNode(block)) return "grid-container";
+  if ($isGridItemNode(block)) return "grid-item";
 
   throw new Error("Unsupported block type");
 }
