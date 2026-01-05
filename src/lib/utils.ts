@@ -21,3 +21,15 @@ export function invariant(
 
   throw new Error(providedMessage ? `${INVARIANT_PREFIX}: ${providedMessage}` : INVARIANT_PREFIX);
 }
+
+export function ensure<ExpectedType>(
+  value: unknown,
+  validator: (value: unknown) => value is ExpectedType,
+  message?: string | (() => string),
+): ExpectedType {
+  if (validator(value)) return value;
+
+  const providedMessage = typeof message === "function" ? message() : message;
+
+  throw new Error(providedMessage ?? "Some error");
+}

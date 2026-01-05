@@ -9,6 +9,7 @@ import {
   type LexicalNode,
 } from "lexical";
 import { invariant } from "@/lib/utils";
+import type { ImageNode } from "./image-node";
 
 const allowedColumnSpan: Record<number, string> = {
   12: "col-span-12",
@@ -39,8 +40,9 @@ export class GridItemNode extends ElementNode {
     return dom;
   }
 
-  append(...nodes: ElementNode[]): this {
-    invariant(nodes.every($isElementNode), "GridItemNode accepts only ElementNode children");
+  append(...nodes: (ElementNode | ImageNode)[]): this {
+    // TODO: Re-enable with check for ElementNode || ImageNode
+    // invariant(nodes.every($isElementNode), "GridItemNode accepts only ElementNode children");
 
     return super.append(...nodes);
   }
@@ -73,7 +75,10 @@ export class GridItemNode extends ElementNode {
   }
 }
 
-export function $createGridItemNode(columnSpan?: AllowedColumnSpan): GridItemNode {
+export function $createGridItemNode(
+  columnSpan?: AllowedColumnSpan,
+  ...nodes: (ElementNode | ImageNode)[]
+): GridItemNode {
   const gridItemNode = $create(GridItemNode);
 
   if (columnSpan && !GridItemNode.isAllowedColumnSpan(columnSpan)) {
@@ -84,7 +89,7 @@ export function $createGridItemNode(columnSpan?: AllowedColumnSpan): GridItemNod
     $setState(gridItemNode, columnSpanState, allowedColumnSpan[columnSpan]);
   }
 
-  return gridItemNode;
+  return gridItemNode.append(...nodes);
 }
 
 export function $isGridItemNode(node: LexicalNode | null | undefined): node is GridItemNode {

@@ -1,13 +1,14 @@
 "use client";
 import {
+  $isListItemNode,
   $isListNode,
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
-  type ListNodeTagType,
+  ListNode,
 } from "@lexical/list";
 import { $convertToMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $createHeadingNode, $isHeadingNode } from "@lexical/rich-text";
+import { $createHeadingNode } from "@lexical/rich-text";
 import { $setBlocksType } from "@lexical/selection";
 import { mergeRegister } from "@lexical/utils";
 import {
@@ -15,18 +16,21 @@ import {
   $createTextNode,
   $getRoot,
   $getSelection,
+  $isElementNode,
   $isRangeSelection,
-  $isTextNode,
+  $isRootNode,
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
+  COMMAND_PRIORITY_CRITICAL,
+  COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_NORMAL,
+  type CommandListener,
   type ElementFormatType,
-  type ElementNode,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
   INSERT_PARAGRAPH_COMMAND,
   type LexicalCommand,
-  type RangeSelection,
+  type ParagraphNode,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
   type TextFormatType,
@@ -41,8 +45,6 @@ import {
   Download,
   Highlighter,
   Italic,
-  List,
-  ListOrdered,
   type LucideIcon,
   Redo,
   Strikethrough,
@@ -69,14 +71,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  INSERT_BODY_COMMAND,
-  INSERT_HEADING_COMMAND,
-  type SupportedHeadingTag,
-} from "../commands/block-commands";
+import { invariant } from "@/lib/utils";
+import { INSERT_BODY_COMMAND, INSERT_HEADING_COMMAND } from "../commands/block-commands";
 import { INSERT_IMAGE_COMMAND } from "../commands/node-commands";
 import type { BlockTag } from "../lib/types";
-import { $getBlockTag, isSupportedHeadingTag } from "../lib/utils";
+import { $getElementTag, isSupportedBlockTag, isSupportedHeadingTag } from "../lib/utils";
+import { $isGridItemNode } from "../nodes/grid-item-node";
 import { $createImageNode } from "../nodes/image-node";
 
 function Divider() {
@@ -188,6 +188,7 @@ export default function ToolbarPlugin() {
   const [canRedo, setCanRedo] = useState(false);
 
   const [activeTags, setActiveTags] = useState<Set<string> | null>(null);
+  // TODO: Is it better to get the block directly?
   const [blockType, setBlockType] = useState<BlockTag>("p");
 
   // Image add
@@ -213,31 +214,43 @@ export default function ToolbarPlugin() {
     setImageData({ src: "", alt: "" });
   };
 
+  function selectionChangeListener(): boolean {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) return false;
+    const anchorBlock = selection.anchor.getNode().getParent();
+    if ($isRootNode(anchorBlock) || $isGridItemNode(anchorBlock) || anchorBlock === null) {
+      return false;
+    }
+
+    const tag = $isListItemNode(anchorBlock)
+      ? $getElementTag(anchorBlock.getParent())
+      : $getElementTag(anchorBlock);
+    invariant(isSupportedBlockTag(tag), "Must be supported block");
+    setBlockType(tag);
+
+    console.log(`checking selection collapse`);
+
+    if (selection.isCollapsed()) {
+      setActiveTags(null);
+      return false;
+    }
+
+    const tags = new Set<string>();
+    if (selection.hasFormat("bold")) tags.add("bold");
+    if (selection.hasFormat("italic")) tags.add("italic");
+    if (selection.hasFormat("highlight")) tags.add("highlight");
+    if (selection.hasFormat("strikethrough")) tags.add("strikethrough");
+    if (tags.size > 0) setActiveTags(tags);
+
+    return false;
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectionChangeListener should be memoized by React Compiler
   useEffect(() => {
     return mergeRegister(
       editor.registerCommand(
         SELECTION_CHANGE_COMMAND,
-        () => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return false;
-
-          setBlockType($getBlockTag(selection));
-
-          if (selection.isCollapsed() && !activeTags) return false;
-          if (selection.isCollapsed()) {
-            setActiveTags(null);
-            return false;
-          }
-
-          const tags = new Set<string>();
-          if (selection.hasFormat("bold")) tags.add("bold");
-          if (selection.hasFormat("italic")) tags.add("italic");
-          if (selection.hasFormat("highlight")) tags.add("highlight");
-          if (selection.hasFormat("strikethrough")) tags.add("strikethrough");
-          if (tags.size > 0) setActiveTags(tags);
-
-          return false;
-        },
+        selectionChangeListener,
         COMMAND_PRIORITY_NORMAL,
       ),
       editor.registerCommand(
@@ -316,8 +329,7 @@ export default function ToolbarPlugin() {
         COMMAND_PRIORITY_NORMAL,
       ),
     );
-    // TODO: Not sure having activeTags as a dependency is too good
-  }, [editor, activeTags]);
+  }, [editor]);
 
   return (
     <div className="flex my-1 p-1 rounded-lg align-middle items-center gap-x-1">

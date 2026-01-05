@@ -1,11 +1,4 @@
-import {
-  $create,
-  $getState,
-  $setState,
-  createState,
-  DecoratorNode,
-  type LexicalNode,
-} from "lexical";
+import { $create, $getState, $setState, createState, DecoratorNode } from "lexical";
 import type { ImgHTMLAttributes, ReactElement } from "react";
 
 type ImageElement = ReactElement<ImgHTMLAttributes<HTMLImageElement>, "img">;
@@ -35,7 +28,10 @@ export class ImageNode extends DecoratorNode<ImageElement> {
   }
 
   createDOM(): HTMLDivElement {
-    return document.createElement("div");
+    const dom = document.createElement("div");
+    dom.classList.add("lexical-image-wrapper");
+
+    return dom;
   }
 
   updateDOM(): false {
@@ -55,11 +51,7 @@ export class ImageNode extends DecoratorNode<ImageElement> {
   }
 }
 
-export function $createImageNode(
-  src: string,
-  alt: string,
-  width: number,
-): ImageNode {
+export function $createImageNode(src: string, alt: string, width: number): ImageNode {
   const imageNode = $create(ImageNode);
   $setState(imageNode, sourceState, src);
   $setState(imageNode, altState, alt);
@@ -68,8 +60,6 @@ export function $createImageNode(
   return imageNode;
 }
 
-export function $isImageNode(
-  node: LexicalNode | null | undefined,
-): node is ImageNode {
+export function $isImageNode(node: unknown): node is ImageNode {
   return node instanceof ImageNode;
 }

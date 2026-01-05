@@ -1,6 +1,7 @@
 import {
   $create,
   $getState,
+  $isRootNode,
   $setState,
   createState,
   type EditorConfig,
@@ -8,6 +9,7 @@ import {
   type LexicalNode,
 } from "lexical";
 import { invariant } from "@/lib/utils";
+import { $deepCopyElementNode } from "../lib/utils";
 import { $isGridItemNode, GridItemNode } from "./grid-item-node";
 
 const allowedColumnsNumber = {
@@ -20,7 +22,7 @@ const columnsNumberState = createState("columnsNumber", {
   parse: (value) => (typeof value === "string" ? value : allowedColumnsNumber[12]),
 });
 
-export class GridContainerNode extends ElementNode {
+export class GridNode extends ElementNode {
   $config() {
     return this.config("grid-container", {
       extends: ElementNode,
@@ -57,16 +59,45 @@ export class GridContainerNode extends ElementNode {
     return Number($getState(this, columnsNumberState).split("grid-cols-")[1]);
   }
 
+  // TODO: Should guard against doing this when it's not necessary
   updateChildrenColumnSpan(): void {
     const colSpan = this.getColumnsNumber() / this.getChildrenSize();
     invariant(GridItemNode.isAllowedColumnSpan(colSpan), "Invalid column span");
 
     this.getChildrenNodes().forEach((child) => void child.updateColumnSpan(colSpan));
   }
+
+  prune(): void {
+    let hasRemovedChild = false;
+    this.getChildrenNodes().forEach((child) => {
+      if (child.getChildrenSize() === 0) {
+        child.remove();
+        hasRemovedChild = true;
+      }
+    });
+
+    const gridItemsNo = this.getChildrenSize();
+    if (gridItemsNo === 0) return void this.remove();
+    if (gridItemsNo === 1) {
+      const root = this.getParent();
+      invariant($isRootNode(root), "Must be root");
+
+      const firstChild = this.getFirstChild();
+      invariant($isGridItemNode(firstChild), "Must be GridItemNode");
+
+      root.splice(this.getIndexWithinParent(), 1, [
+        ...firstChild.getChildrenNodes().map($deepCopyElementNode),
+      ]);
+      return;
+    }
+
+    // The grid still has items, so they need to be updated
+    if (hasRemovedChild) this.updateChildrenColumnSpan();
+  }
 }
 
-export function $createGridContainerNode(columnsNumber?: AllowedColumnsNumber): GridContainerNode {
-  const gridContainer = $create(GridContainerNode);
+export function $createGridNode(columnsNumber?: AllowedColumnsNumber): GridNode {
+  const gridContainer = $create(GridNode);
 
   if (columnsNumber) {
     const gridColumns = allowedColumnsNumber[columnsNumber] ?? undefined;
@@ -78,8 +109,6 @@ export function $createGridContainerNode(columnsNumber?: AllowedColumnsNumber): 
   return gridContainer;
 }
 
-export function $isGridContainerNode(
-  node: LexicalNode | null | undefined,
-): node is GridContainerNode {
-  return node instanceof GridContainerNode;
+export function $isGridNode(node: LexicalNode | null | undefined): node is GridNode {
+  return node instanceof GridNode;
 }

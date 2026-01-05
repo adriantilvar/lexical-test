@@ -1,4 +1,86 @@
-.lexical-block {
+[data-lexical-editor="true"] {
+  --prose-strong-color: var(--color-gray-950);
+  --prose-heading-color: var(--color-gray-950);
+  --prose-marker-color: color-mix(in oklab, var(--color-gray-700) 25%, transparent);
+
+  font-size: var(--text-lg);
+
+  h2 {
+    margin-bottom: calc(var(--spacing) * 2);
+    color: var(--prose-heading-color);
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-semibold);
+    line-height: calc(var(--spacing) * 8);
+    letter-spacing: -0.025em;
+  }
+
+  h3 {
+    margin-bottom: var(--spacing);
+    color: var(--prose-heading-color);
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-semibold);
+    line-height: calc(var(--spacing) * 6);
+  }
+
+  h4 {
+    margin-bottom: calc(var(--spacing) * 0.5);
+    color: var(--prose-heading-color);
+    font-weight: var(--font-weight-semibold);
+    line-height: calc(var(--spacing) * 6);
+  }
+
+  span {
+    &[data-lexical-italic] {
+      font-style: italic;
+    }
+
+    &[data-lexical-bold] {
+      font-weight: var(--font-weight-semibold);
+      color: var(--prose-strong-color);
+    }
+
+    &[data-lexical-strikethrough] {
+      text-decoration-line: line-through;
+    }
+
+    &[data-lexical-highlight] {
+      background-color: var(--color-amber-200);
+      color: var(--color-amber-900);
+    }
+  }
+
+  ol,
+  ul {
+    padding-left: calc(var(--spacing) * 6);
+
+    li {
+      padding-left: calc(var(--spacing) * 1.5);
+
+      &::marker {
+        font-weight: var(--font-weight-semibold);
+      }
+    }
+  }
+
+  ol {
+    list-style-type: decimal;
+
+    li::marker {
+      color: var(--prose-strong-color);
+    }
+  }
+
+  ul {
+    list-style-type: disc;
+
+    li::marker {
+      color: var(--prose-marker-color);
+    }
+  }
+}
+
+.lexical-block,
+.lexical-image-wrapper {
   position: relative;
 
   &::before {
@@ -39,5 +121,19 @@
     bottom: 0;
     right: calc(var(--spacing) * -1.5);
     width: var(--spacing);
+  }
+}
+
+.lexical-image-wrapper {
+  img {
+    border-radius: var(--radius-xl);
+  }
+
+  * + & {
+    margin-top: calc(var(--spacing) * 4);
+  }
+
+  &:has(+ *) {
+    margin-bottom: calc(var(--spacing) * 4);
   }
 }
