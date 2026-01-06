@@ -1,5 +1,5 @@
 import { $isListItemNode, $isListNode } from "@lexical/list";
-import { $isHeadingNode } from "@lexical/rich-text";
+import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";
 import {
   $copyNode,
   $isElementNode,
@@ -13,14 +13,15 @@ import { invariant } from "@/lib/utils";
 import type { SupportedHeadingTag } from "../commands/block-commands";
 import { $isGridNode, type GridNode } from "../nodes/grid-node";
 import { $isImageNode, type ImageNode } from "../nodes/image-node";
-import { BLOCK_TAGS } from "./const";
-import type { BlockTag } from "./types";
 
 export function isSupportedHeadingTag(tag: string): tag is SupportedHeadingTag {
   return /^h[2-4]$/.test(tag);
 }
 
+export const BLOCK_TAGS = ["h2", "h3", "h4", "p", "blockquote", "li", "ul", "ol"] as const;
 const blockTagSet = new Set<string>(BLOCK_TAGS);
+
+export type BlockTag = (typeof BLOCK_TAGS)[number];
 
 export function isSupportedBlockTag(tag: string | null): tag is BlockTag {
   return tag !== null && blockTagSet.has(tag);
@@ -29,11 +30,12 @@ export function isSupportedBlockTag(tag: string | null): tag is BlockTag {
 export function $getElementTag(node: ElementNode | ImageNode | null): string | null {
   if (node === null) return null;
 
-  if ($isImageNode(node)) return "img";
   if ($isParagraphNode(node)) return "p";
   if ($isListItemNode(node)) return "li";
   if ($isHeadingNode(node)) return node.getTag();
+  if ($isQuoteNode(node)) return "blockquote";
   if ($isListNode(node)) return node.getTag();
+  if ($isImageNode(node)) return "img";
 
   throw new Error("Unsupported element type");
 }
@@ -76,6 +78,31 @@ export function $deepCopyElementNode<T extends LexicalNode>(node: T): T {
   });
 
   return $copyNode(node).append(...childrenCopy);
+}
+
+export function $getImmediateBlockNode(node: LexicalNode): ElementNode | null {
+  let currentNode: LexicalNode | null = node;
+  while (currentNode && !$isBlockElementNode(currentNode)) {
+    currentNode = currentNode.getParent();
+  }
+
+  return currentNode;
+}
+
+export function $getNodesBetween(source: LexicalNode, target: LexicalNode): LexicalNode[] {
+  if (source === target) return [source];
+
+  const nodes: LexicalNode[] = [];
+
+  const isSourceBeforeTarget = source.isBefore(target);
+  const stopNode = isSourceBeforeTarget ? target.getNextSibling() : source.getNextSibling();
+  let currentNode: LexicalNode | null = isSourceBeforeTarget ? source : target;
+  while (currentNode && currentNode !== stopNode) {
+    nodes.push(currentNode);
+    currentNode = currentNode.getNextSibling();
+  }
+
+  return nodes;
 }
 
 export function $getParentGridNode(node: ElementNode | ImageNode): GridNode | null {

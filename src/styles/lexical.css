@@ -2,6 +2,7 @@
   --prose-strong-color: var(--color-gray-950);
   --prose-heading-color: var(--color-gray-950);
   --prose-marker-color: color-mix(in oklab, var(--color-gray-700) 25%, transparent);
+  --prose-blockquote-border-color: var(--color-gray-300);
 
   font-size: var(--text-lg);
 
@@ -51,7 +52,7 @@
 
   ol,
   ul {
-    padding-left: calc(var(--spacing) * 6);
+    padding-left: calc(var(--spacing) * 4.5);
 
     li {
       padding-left: calc(var(--spacing) * 1.5);
@@ -76,6 +77,22 @@
     li::marker {
       color: var(--prose-marker-color);
     }
+  }
+
+  blockquote {
+    font-style: italic;
+    border-inline-start-width: var(--spacing);
+    border-inline-start-color: var(--prose-blockquote-border-color);
+    padding-inline-start: calc(var(--spacing) * 4);
+    margin-left: calc(var(--spacing) * 0.5);
+  }
+
+  blockquote p:first-of-type span:first-of-type:before {
+    content: open-quote;
+  }
+
+  blockquote p:last-of-type span:last-of-type::after {
+    content: close-quote;
   }
 }
 

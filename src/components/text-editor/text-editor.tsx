@@ -7,7 +7,7 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
-import { HeadingNode } from "@lexical/rich-text";
+import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ParagraphNode, TextNode } from "lexical";
 import { Loader } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -30,6 +30,7 @@ const nodes = [
   },
   ParagraphNode,
   HeadingNode,
+  QuoteNode,
   GridNode,
   GridItemNode,
   ListNode,
@@ -67,7 +68,7 @@ function TextEditor({
           <RichTextPlugin
             contentEditable={
               <ContentEditable
-                className="outline-none px-8 py-3"
+                className="outline-none px-8 py-6"
                 aria-placeholder={"You can start typing..."}
                 placeholder={
                   <div className="absolute left-4 top-3 select-none pointer-events-none text-zinc-400">

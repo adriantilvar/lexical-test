@@ -449,7 +449,17 @@ export function DragAndDropPlugin() {
           <Popover.Positioner
             side="left"
             align="start"
-            sideOffset={() => (dragMenuAnchorRef.current instanceof HTMLLIElement ? 28 : 4)}
+            sideOffset={() => {
+              if (dragMenuAnchorRef.current instanceof HTMLLIElement) {
+                return 22;
+              }
+
+              if (dragMenuAnchorRef.current?.parentElement instanceof HTMLQuoteElement) {
+                return 26;
+              }
+
+              return 4;
+            }}
             anchor={getDragMenuAnchor()}
           >
             <Popover.Popup className="outline-none mt-0.5 py-0.5 px-px rounded-sm origin-(--transform-origin) hover:bg-zinc-200/60 hover:cursor-grab text-zinc-600 hover:text-zinc-900 has-data-starting-style:scale-98 has-data-starting-style:opacity-0">

@@ -8,8 +8,8 @@ import {
 } from "@lexical/list";
 import { $convertToMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $createHeadingNode } from "@lexical/rich-text";
-import { $setBlocksType } from "@lexical/selection";
+import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text";
+import { $setBlocksType, $wrapNodes } from "@lexical/selection";
 import { mergeRegister } from "@lexical/utils";
 import {
   $createParagraphNode,
@@ -26,10 +26,12 @@ import {
   COMMAND_PRIORITY_NORMAL,
   type CommandListener,
   type ElementFormatType,
+  type ElementNode,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
   INSERT_PARAGRAPH_COMMAND,
   type LexicalCommand,
+  type LexicalNode,
   type ParagraphNode,
   REDO_COMMAND,
   SELECTION_CHANGE_COMMAND,
@@ -72,10 +74,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { invariant } from "@/lib/utils";
-import { INSERT_BODY_COMMAND, INSERT_HEADING_COMMAND } from "../commands/block-commands";
+import {
+  INSERT_BODY_COMMAND,
+  INSERT_HEADING_COMMAND,
+  INSERT_QUOTE_COMMAND,
+} from "../commands/block-commands";
 import { INSERT_IMAGE_COMMAND } from "../commands/node-commands";
-import type { BlockTag } from "../lib/types";
-import { $getElementTag, isSupportedBlockTag, isSupportedHeadingTag } from "../lib/utils";
+import {
+  $deepCopyElementNode,
+  $getElementTag,
+  $getImmediateBlockNode,
+  $getNodesBetween,
+  $isBlockElementNode,
+  type BlockTag,
+  isSupportedBlockTag,
+  isSupportedHeadingTag,
+} from "../lib/utils";
 import { $isGridItemNode } from "../nodes/grid-item-node";
 import { $createImageNode } from "../nodes/image-node";
 
@@ -95,6 +109,7 @@ type BlockStyle =
   | "Subheading"
   | "Sub-subheading"
   | "Body"
+  | "Quote"
   | "Bulleted List"
   | "Numbered List";
 type BlockStyleOption = { label: BlockStyle; value: BlockTag };
@@ -104,6 +119,7 @@ const blockCommandMap = new Map([
   ["h3", { type: INSERT_HEADING_COMMAND, payload: "h3" }],
   ["h4", { type: INSERT_HEADING_COMMAND, payload: "h4" }],
   ["p", { type: INSERT_BODY_COMMAND, payload: undefined }],
+  ["blockquote", { type: INSERT_QUOTE_COMMAND, payload: undefined }],
   ["ul", { type: INSERT_UNORDERED_LIST_COMMAND, payload: undefined }],
   ["ol", { type: INSERT_ORDERED_LIST_COMMAND, payload: undefined }],
 ]);
@@ -113,6 +129,7 @@ const blockStyle: BlockStyleOption[] = [
   { label: "Subheading", value: "h3" },
   { label: "Sub-subheading", value: "h4" },
   { label: "Body", value: "p" },
+  { label: "Quote", value: "blockquote" },
   { label: "Bulleted List", value: "ul" },
   { label: "Numbered List", value: "ol" },
 ];
@@ -228,8 +245,6 @@ export default function ToolbarPlugin() {
     invariant(isSupportedBlockTag(tag), "Must be supported block");
     setBlockType(tag);
 
-    console.log(`checking selection collapse`);
-
     if (selection.isCollapsed()) {
       setActiveTags(null);
       return false;
@@ -246,90 +261,119 @@ export default function ToolbarPlugin() {
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectionChangeListener should be memoized by React Compiler
-  useEffect(() => {
-    return mergeRegister(
-      editor.registerCommand(
-        SELECTION_CHANGE_COMMAND,
-        selectionChangeListener,
-        COMMAND_PRIORITY_NORMAL,
-      ),
-      editor.registerCommand(
-        INSERT_HEADING_COMMAND,
-        (payload) => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection) || !isSupportedHeadingTag(payload)) {
+  useEffect(
+    () =>
+      mergeRegister(
+        editor.registerCommand(
+          SELECTION_CHANGE_COMMAND,
+          selectionChangeListener,
+          COMMAND_PRIORITY_NORMAL,
+        ),
+        editor.registerCommand(
+          INSERT_HEADING_COMMAND,
+          (payload) => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection) || !isSupportedHeadingTag(payload)) {
+              return false;
+            }
+
+            editor.update(() =>
+              $setBlocksType(
+                selection,
+                () => $createHeadingNode(payload),
+                (node) => {
+                  const child = $createTextNode(node.getTextContent());
+                  node.clear();
+                  node.append(child);
+                  child.selectEnd();
+                },
+              ),
+            );
+
+            return true;
+          },
+          COMMAND_PRIORITY_NORMAL,
+        ),
+        editor.registerCommand(
+          INSERT_IMAGE_COMMAND,
+          (payload) => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return false;
+
+            const imageNode = $createImageNode(payload.src, payload.alt, payload.width);
+            const emptyText = $createTextNode(" ");
+            const emptyParagraph = $createParagraphNode();
+            emptyParagraph.append(emptyText);
+
+            const root = $getRoot();
+            root.append(imageNode);
+            root.append(emptyParagraph);
+
+            selection.setTextNodeRange(emptyText, 0, emptyText, 0);
+
+            return true;
+          },
+          COMMAND_PRIORITY_NORMAL,
+        ),
+        editor.registerCommand(
+          INSERT_BODY_COMMAND,
+          () => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return false;
+
+            editor.update(() => $setBlocksType(selection, () => $createParagraphNode()));
+            return true;
+          },
+          COMMAND_PRIORITY_NORMAL,
+        ),
+        editor.registerCommand(
+          INSERT_QUOTE_COMMAND,
+          () => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return false;
+
+            editor.update(() => {
+              // TODO: Handle case where selectedBlocks are already inside QuoteNode
+              const anchorBlock = $getImmediateBlockNode(selection.anchor.getNode());
+              invariant(anchorBlock, "Must have anchor block");
+              const focusBlock = $getImmediateBlockNode(selection.focus.getNode());
+              invariant(focusBlock, "Must have focus block");
+
+              const selectedBlocks = $getNodesBetween(anchorBlock, focusBlock);
+
+              const quoteNode = $createQuoteNode().append(
+                ...selectedBlocks.map($deepCopyElementNode),
+              );
+
+              const insertionIndex = selectedBlocks[0].getIndexWithinParent();
+              $getRoot().splice(insertionIndex, selectedBlocks.length, [quoteNode]);
+
+              quoteNode.getLastChild()?.selectEnd();
+            });
+
+            return true;
+          },
+          COMMAND_PRIORITY_NORMAL,
+        ),
+        editor.registerCommand(
+          CAN_UNDO_COMMAND,
+          (payload) => {
+            setCanUndo(payload);
             return false;
-          }
-
-          editor.update(() =>
-            $setBlocksType(
-              selection,
-              () => $createHeadingNode(payload),
-              (node) => {
-                const child = $createTextNode(node.getTextContent());
-                const length = child.__text.length;
-
-                node.clear();
-                node.append(child);
-                selection.setTextNodeRange(child, length, child, length);
-              },
-            ),
-          );
-
-          return true;
-        },
-        COMMAND_PRIORITY_NORMAL,
+          },
+          COMMAND_PRIORITY_NORMAL,
+        ),
+        editor.registerCommand(
+          CAN_REDO_COMMAND,
+          (payload) => {
+            setCanRedo(payload);
+            return false;
+          },
+          COMMAND_PRIORITY_NORMAL,
+        ),
       ),
-      editor.registerCommand(
-        INSERT_IMAGE_COMMAND,
-        (payload) => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return false;
-
-          const imageNode = $createImageNode(payload.src, payload.alt, payload.width);
-          const emptyText = $createTextNode(" ");
-          const emptyParagraph = $createParagraphNode();
-          emptyParagraph.append(emptyText);
-
-          const root = $getRoot();
-          root.append(imageNode);
-          root.append(emptyParagraph);
-
-          selection.setTextNodeRange(emptyText, 0, emptyText, 0);
-
-          return true;
-        },
-        COMMAND_PRIORITY_NORMAL,
-      ),
-      editor.registerCommand(
-        INSERT_BODY_COMMAND,
-        () => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return false;
-
-          editor.update(() => $setBlocksType(selection, () => $createParagraphNode()));
-          return true;
-        },
-        COMMAND_PRIORITY_NORMAL,
-      ),
-      editor.registerCommand(
-        CAN_UNDO_COMMAND,
-        (payload) => {
-          setCanUndo(payload);
-          return false;
-        },
-        COMMAND_PRIORITY_NORMAL,
-      ),
-      editor.registerCommand(
-        CAN_REDO_COMMAND,
-        (payload) => {
-          setCanRedo(payload);
-          return false;
-        },
-        COMMAND_PRIORITY_NORMAL,
-      ),
-    );
-  }, [editor]);
+    [editor],
+  );
 
   return (
     <div className="flex my-1 p-1 rounded-lg align-middle items-center gap-x-1">
