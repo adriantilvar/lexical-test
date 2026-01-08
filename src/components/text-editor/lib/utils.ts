@@ -11,6 +11,7 @@ import {
 } from "lexical";
 import { invariant } from "@/lib/utils";
 import type { SupportedHeadingTag } from "../commands/block-commands";
+import { $isGridItemNode } from "../nodes/grid-item-node";
 import { $isGridNode, type GridNode } from "../nodes/grid-node";
 import { $isImageNode, type ImageNode } from "../nodes/image-node";
 
@@ -89,7 +90,23 @@ export function $getImmediateBlockNode(node: LexicalNode): ElementNode | null {
   return currentNode;
 }
 
-export function $getNodesBetween(source: LexicalNode, target: LexicalNode): LexicalNode[] {
+export function $isContainerNode(node: LexicalNode | null): boolean {
+  return $isRootNode(node) || $isGridItemNode(node) || $isGridNode(node);
+}
+
+export function $getTopLevelNode(node: LexicalNode): LexicalNode | null {
+  let currentNode: LexicalNode | null = node;
+  while (currentNode) {
+    const parent: ElementNode | null = currentNode.getParent();
+    if ($isContainerNode(parent)) return currentNode;
+
+    currentNode = parent;
+  }
+
+  return currentNode;
+}
+
+export function $getSiblingsBetween(source: LexicalNode, target: LexicalNode): LexicalNode[] {
   if (source === target) return [source];
 
   const nodes: LexicalNode[] = [];

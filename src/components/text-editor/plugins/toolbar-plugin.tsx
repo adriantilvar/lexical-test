@@ -1,19 +1,22 @@
 "use client";
 import {
+  $createListNode,
   $isListItemNode,
   $isListNode,
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
   ListNode,
+  type ListType,
 } from "@lexical/list";
 import { $convertToMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text";
+import { $createHeadingNode, $createQuoteNode, $isQuoteNode } from "@lexical/rich-text";
 import { $setBlocksType, $wrapNodes } from "@lexical/selection";
 import { mergeRegister } from "@lexical/utils";
 import {
   $createParagraphNode,
   $createTextNode,
+  $getNodeByKey,
   $getRoot,
   $getSelection,
   $isElementNode,
@@ -34,6 +37,7 @@ import {
   type LexicalNode,
   type ParagraphNode,
   REDO_COMMAND,
+  RootNode,
   SELECTION_CHANGE_COMMAND,
   type TextFormatType,
   UNDO_COMMAND,
@@ -83,8 +87,7 @@ import { INSERT_IMAGE_COMMAND } from "../commands/node-commands";
 import {
   $deepCopyElementNode,
   $getElementTag,
-  $getImmediateBlockNode,
-  $getNodesBetween,
+  $getTopLevelNode,
   $isBlockElementNode,
   type BlockTag,
   isSupportedBlockTag,
@@ -231,42 +234,39 @@ export default function ToolbarPlugin() {
     setImageData({ src: "", alt: "" });
   };
 
-  function selectionChangeListener(): boolean {
-    const selection = $getSelection();
-    if (!$isRangeSelection(selection)) return false;
-    const anchorBlock = selection.anchor.getNode().getParent();
-    if ($isRootNode(anchorBlock) || $isGridItemNode(anchorBlock) || anchorBlock === null) {
-      return false;
-    }
-
-    const tag = $isListItemNode(anchorBlock)
-      ? $getElementTag(anchorBlock.getParent())
-      : $getElementTag(anchorBlock);
-    invariant(isSupportedBlockTag(tag), "Must be supported block");
-    setBlockType(tag);
-
-    if (selection.isCollapsed()) {
-      setActiveTags(null);
-      return false;
-    }
-
-    const tags = new Set<string>();
-    if (selection.hasFormat("bold")) tags.add("bold");
-    if (selection.hasFormat("italic")) tags.add("italic");
-    if (selection.hasFormat("highlight")) tags.add("highlight");
-    if (selection.hasFormat("strikethrough")) tags.add("strikethrough");
-    if (tags.size > 0) setActiveTags(tags);
-
-    return false;
-  }
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectionChangeListener should be memoized by React Compiler
   useEffect(
     () =>
       mergeRegister(
         editor.registerCommand(
           SELECTION_CHANGE_COMMAND,
-          selectionChangeListener,
+          () => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return false;
+            const anchorBlock = selection.anchor.getNode().getParent();
+            if ($isRootNode(anchorBlock) || $isGridItemNode(anchorBlock) || anchorBlock === null) {
+              return false;
+            }
+
+            const tag = $isListItemNode(anchorBlock)
+              ? $getElementTag(anchorBlock.getParent())
+              : $getElementTag(anchorBlock);
+            invariant(isSupportedBlockTag(tag), "Must be supported block");
+            setBlockType(tag);
+
+            if (selection.isCollapsed()) {
+              setActiveTags(null);
+              return false;
+            }
+
+            const tags = new Set<string>();
+            if (selection.hasFormat("bold")) tags.add("bold");
+            if (selection.hasFormat("italic")) tags.add("italic");
+            if (selection.hasFormat("highlight")) tags.add("highlight");
+            if (selection.hasFormat("strikethrough")) tags.add("strikethrough");
+            if (tags.size > 0) setActiveTags(tags);
+
+            return false;
+          },
           COMMAND_PRIORITY_NORMAL,
         ),
         editor.registerCommand(
@@ -333,21 +333,59 @@ export default function ToolbarPlugin() {
             if (!$isRangeSelection(selection)) return false;
 
             editor.update(() => {
-              // TODO: Handle case where selectedBlocks are already inside QuoteNode
-              const anchorBlock = $getImmediateBlockNode(selection.anchor.getNode());
-              invariant(anchorBlock, "Must have anchor block");
-              const focusBlock = $getImmediateBlockNode(selection.focus.getNode());
-              invariant(focusBlock, "Must have focus block");
+              const keysToInsert = new Set<string>();
+              const keysToRemove = new Set<string>();
+              const keysToCleanUp = new Set<string>();
+              let insertionIndex: number | null = null;
 
-              const selectedBlocks = $getNodesBetween(anchorBlock, focusBlock);
+              selection.getNodes().forEach((node) => {
+                const block = $isBlockElementNode(node) ? node : node.getParent();
 
-              const quoteNode = $createQuoteNode().append(
-                ...selectedBlocks.map($deepCopyElementNode),
-              );
+                if ($isQuoteNode(block) || $isListNode(block)) {
+                  keysToCleanUp.add(block.getKey());
+                  return;
+                }
 
-              const insertionIndex = selectedBlocks[0].getIndexWithinParent();
-              $getRoot().splice(insertionIndex, selectedBlocks.length, [quoteNode]);
+                invariant($isBlockElementNode(block), "Selected block must be ElementNode");
 
+                keysToInsert.add(block.getKey());
+                keysToRemove.add(block.getKey());
+
+                if (insertionIndex === null) {
+                  const topLevelBlock = $getTopLevelNode(block);
+                  invariant($isElementNode(topLevelBlock), "Top-level block must be ElementNode");
+                  insertionIndex = topLevelBlock.getIndexWithinParent();
+                }
+              });
+
+              invariant(insertionIndex !== null, "Must have insertion index");
+
+              const blocksToInsert: ElementNode[] = [];
+
+              keysToInsert.forEach((key) => {
+                const node = $getNodeByKey(key);
+                invariant($isElementNode(node), "Node to insert must be ElementNode");
+
+                blocksToInsert.push(
+                  $isListItemNode(node)
+                    ? $createParagraphNode().append(...node.getChildren().map($deepCopyElementNode))
+                    : $deepCopyElementNode(node),
+                );
+              });
+
+              keysToRemove.forEach((key) => {
+                $getNodeByKey(key)?.remove();
+              });
+
+              keysToCleanUp.forEach((key) => {
+                const node = $getNodeByKey(key);
+                invariant($isElementNode(node), "Node to clean up must be ElementNode");
+
+                if (node.getChildrenSize() === 0) node.remove();
+              });
+
+              const quoteNode = $createQuoteNode().append(...blocksToInsert);
+              $getRoot().splice(insertionIndex, 0, [quoteNode]);
               quoteNode.getLastChild()?.selectEnd();
             });
 

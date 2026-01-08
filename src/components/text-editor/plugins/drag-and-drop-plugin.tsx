@@ -10,7 +10,7 @@ import type { ElementDragType, Position } from "@atlaskit/pragmatic-drag-and-dro
 import { Popover } from "@base-ui/react/popover";
 import { $createListNode, $isListItemNode, $isListNode, ListItemNode } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { HeadingNode } from "@lexical/rich-text";
+import { $isQuoteNode, HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { mergeRegister } from "@lexical/utils";
 import {
   $copyNode,
@@ -450,13 +450,10 @@ export function DragAndDropPlugin() {
             side="left"
             align="start"
             sideOffset={() => {
-              if (dragMenuAnchorRef.current instanceof HTMLLIElement) {
-                return 22;
-              }
+              const anchor = dragMenuAnchorRef.current;
 
-              if (dragMenuAnchorRef.current?.parentElement instanceof HTMLQuoteElement) {
-                return 26;
-              }
+              if (anchor instanceof HTMLLIElement) return 22;
+              if (anchor?.parentElement instanceof HTMLQuoteElement) return 26;
 
               return 4;
             }}
