@@ -52,7 +52,7 @@
 
   ol,
   ul {
-    padding-left: calc(var(--spacing) * 4.5);
+    padding-left: calc(var(--spacing) * 4);
 
     li {
       padding-left: calc(var(--spacing) * 1.5);
@@ -80,19 +80,28 @@
   }
 
   blockquote {
+    position: relative;
     font-style: italic;
-    border-inline-start-width: var(--spacing);
-    border-inline-start-color: var(--prose-blockquote-border-color);
     padding-inline-start: calc(var(--spacing) * 4);
-    margin-left: calc(var(--spacing) * 0.5);
-  }
 
-  blockquote p:first-of-type span:first-of-type:before {
-    content: open-quote;
-  }
+    &::before {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      background: var(--prose-blockquote-border-color);
+      top: calc(var(--spacing) * 0.5);
+      bottom: calc(var(--spacing) * 0.5);
+      left: 0;
+      width: var(--spacing);
+    }
 
-  blockquote p:last-of-type span:last-of-type::after {
-    content: close-quote;
+    & p:first-of-type span:first-of-type:before {
+      content: open-quote;
+    }
+
+    & p:last-of-type span:last-of-type::after {
+      content: close-quote;
+    }
   }
 }
 

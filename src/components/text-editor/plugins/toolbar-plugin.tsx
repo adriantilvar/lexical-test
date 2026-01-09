@@ -20,6 +20,7 @@ import {
   $getRoot,
   $getSelection,
   $isElementNode,
+  $isParagraphNode,
   $isRangeSelection,
   $isRootNode,
   CAN_REDO_COMMAND,
@@ -87,8 +88,10 @@ import { INSERT_IMAGE_COMMAND } from "../commands/node-commands";
 import {
   $deepCopyElementNode,
   $getElementTag,
+  $getSiblingsBetween,
   $getTopLevelNode,
   $isBlockElementNode,
+  $isContainerNode,
   type BlockTag,
   isSupportedBlockTag,
   isSupportedHeadingTag,
@@ -242,12 +245,16 @@ export default function ToolbarPlugin() {
           () => {
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) return false;
+            const topLevelBlock = $getTopLevelNode(selection.anchor.getNode());
             const anchorBlock = selection.anchor.getNode().getParent();
             if ($isRootNode(anchorBlock) || $isGridItemNode(anchorBlock) || anchorBlock === null) {
               return false;
             }
 
-            const tag = $isListItemNode(anchorBlock)
+            // $1: This fucks up with the insertion commands
+            // const tag = $getElementTag(topLevelBlock);
+
+            const tag = $isListItemNode(topLevelBlock)
               ? $getElementTag(anchorBlock.getParent())
               : $getElementTag(anchorBlock);
             invariant(isSupportedBlockTag(tag), "Must be supported block");
@@ -321,7 +328,44 @@ export default function ToolbarPlugin() {
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) return false;
 
-            editor.update(() => $setBlocksType(selection, () => $createParagraphNode()));
+            const selectionEdgePoints = selection.getStartEndPoints();
+            invariant(selectionEdgePoints, "Must have selection edge points");
+
+            const [anchorBlock, focusBlock] = selectionEdgePoints
+              .map((point) => $getNodeByKey(point.key))
+              .map((node) => node?.getParent());
+            invariant($isBlockElementNode(anchorBlock), "anchorBlock must be ElementNode");
+            invariant($isBlockElementNode(focusBlock), "focusBlock must be ElementNode");
+
+            const selectedBlocks = $getSiblingsBetween(anchorBlock, focusBlock);
+
+            const blockKeysToRemove = new Set<string>();
+
+            selectedBlocks.forEach((block) => {
+              invariant($isBlockElementNode(block), "Selected block must be ElementNode");
+              const blockParent = block.getParent();
+              invariant($isElementNode(blockParent), "Block parent must be ElementNode");
+
+              if (!$isParagraphNode(block)) {
+                const blockChildren = block.getChildren().map($deepCopyElementNode);
+                block.replace($createParagraphNode().append(...blockChildren));
+              }
+
+              if ($isQuoteNode(blockParent)) blockKeysToRemove.add(blockParent.getKey());
+            });
+
+            // BUG: Inside GridItem, removing QuoteNode triggers error; probably caused by $1
+            blockKeysToRemove.forEach((key) => {
+              const block = $getNodeByKey(key);
+              invariant($isElementNode(block), "Node to remove must be ElementNode");
+
+              const blockChildren = block.getChildren().map($deepCopyElementNode);
+              const blockParent = block.getParent();
+              invariant($isElementNode(blockParent), "Block parent must be ElementNode");
+
+              blockParent.splice(block.getIndexWithinParent(), 1, blockChildren);
+            });
+
             return true;
           },
           COMMAND_PRIORITY_NORMAL,
@@ -336,14 +380,16 @@ export default function ToolbarPlugin() {
               const keysToInsert = new Set<string>();
               const keysToRemove = new Set<string>();
               const keysToCleanUp = new Set<string>();
-              let insertionIndex: number | null = null;
 
-              selection.getNodes().forEach((node) => {
+              let insertionIndex: number | null = null;
+              let container: ElementNode | null = null;
+
+              for (const node of selection.getNodes()) {
                 const block = $isBlockElementNode(node) ? node : node.getParent();
 
                 if ($isQuoteNode(block) || $isListNode(block)) {
                   keysToCleanUp.add(block.getKey());
-                  return;
+                  continue;
                 }
 
                 invariant($isBlockElementNode(block), "Selected block must be ElementNode");
@@ -351,14 +397,16 @@ export default function ToolbarPlugin() {
                 keysToInsert.add(block.getKey());
                 keysToRemove.add(block.getKey());
 
-                if (insertionIndex === null) {
+                if (insertionIndex === null && container === null) {
                   const topLevelBlock = $getTopLevelNode(block);
                   invariant($isElementNode(topLevelBlock), "Top-level block must be ElementNode");
                   insertionIndex = topLevelBlock.getIndexWithinParent();
+                  container = topLevelBlock.getParent();
                 }
-              });
+              }
 
               invariant(insertionIndex !== null, "Must have insertion index");
+              invariant($isElementNode(container), "Must have container");
 
               const blocksToInsert: ElementNode[] = [];
 
@@ -385,7 +433,7 @@ export default function ToolbarPlugin() {
               });
 
               const quoteNode = $createQuoteNode().append(...blocksToInsert);
-              $getRoot().splice(insertionIndex, 0, [quoteNode]);
+              container.splice(insertionIndex, 0, [quoteNode]);
               quoteNode.getLastChild()?.selectEnd();
             });
 

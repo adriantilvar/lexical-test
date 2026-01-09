@@ -57,6 +57,10 @@ export function isListItemElement(element: unknown): element is HTMLLIElement {
   return element instanceof HTMLLIElement;
 }
 
+export function isQuoteElement(element: unknown): element is HTMLQuoteElement {
+  return element instanceof HTMLQuoteElement;
+}
+
 export function isLexicalNode(node: unknown): node is LexicalNode {
   return (
     node !== null &&

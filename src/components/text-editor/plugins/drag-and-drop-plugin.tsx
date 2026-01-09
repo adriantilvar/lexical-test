@@ -39,6 +39,7 @@ import {
   isGridItemElement,
   isListElement,
   isListItemElement,
+  isQuoteElement,
 } from "../lib/utils";
 import { $createGridItemNode, $isGridItemNode, GridItemNode } from "../nodes/grid-item-node";
 import { $createGridNode, $isGridNode, GridNode } from "../nodes/grid-node";
@@ -97,6 +98,10 @@ function getAllowedEdges(source: HTMLElement, target: HTMLElement): Edge[] {
     if (source.nextElementSibling !== target) allowedEdges.push("top");
 
     return allowedEdges;
+  }
+
+  if (isQuoteElement(target.parentElement)) {
+    return ["top", "bottom"];
   }
 
   if (isListItemElement(target) && isListItemElement(source)) {
