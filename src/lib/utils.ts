@@ -33,3 +33,24 @@ export function ensure<ExpectedType>(
 
   throw new Error(providedMessage ?? "Some error");
 }
+
+export function partition<T>(
+  array: Array<T>,
+  predicate: (item: T) => boolean,
+): [Array<T>, Array<T>] {
+  if (!Array.isArray(array)) throw new Error("The provided array is not valid");
+  if (array.length === 0) return [[], []];
+
+  const matching: Array<T> = [];
+  const notMatching: Array<T> = [];
+  array.forEach((item) => {
+    if (predicate(item)) matching.push(item);
+    else notMatching.push(item);
+  });
+
+  return [matching, notMatching];
+}
+
+export function not<T>(predicate: (item: T) => boolean): (item: T) => boolean {
+  return (item: T) => !predicate(item);
+}

@@ -1,11 +1,9 @@
 import { createCommand } from "lexical";
 
-type InsertImagePayload = {
+export type InsertImagePayload = {
   src: string;
   alt: string;
   width: number;
 };
 
-export const INSERT_IMAGE_COMMAND = createCommand<InsertImagePayload>(
-  "INSERT_BODY_COMMAND",
-);
+export const INSERT_IMAGE_COMMAND = createCommand<InsertImagePayload>("INSERT_BODY_COMMAND");

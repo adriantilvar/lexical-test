@@ -5,7 +5,6 @@ import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ParagraphNode, TextNode } from "lexical";
@@ -79,7 +78,6 @@ function TextEditor({
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
-          <ListPlugin />
           <DragAndDropPlugin />
           <AutoFocusPlugin />
           <LimitedHistoryPlugin limit={30} />

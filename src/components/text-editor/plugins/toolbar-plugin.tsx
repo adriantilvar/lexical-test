@@ -1,28 +1,34 @@
 "use client";
 import {
+  $createListItemNode,
   $createListNode,
+  $insertList,
   $isListItemNode,
   $isListNode,
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
+  ListItemNode,
   ListNode,
   type ListType,
 } from "@lexical/list";
 import { $convertToMarkdownString, TRANSFORMERS } from "@lexical/markdown";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $createHeadingNode, $createQuoteNode, $isQuoteNode } from "@lexical/rich-text";
-import { $setBlocksType, $wrapNodes } from "@lexical/selection";
+import { $setBlocksType } from "@lexical/selection";
 import { mergeRegister } from "@lexical/utils";
 import {
   $createParagraphNode,
+  $createRangeSelection,
   $createTextNode,
   $getNodeByKey,
   $getRoot,
   $getSelection,
   $isElementNode,
+  $isNodeSelection,
   $isParagraphNode,
   $isRangeSelection,
   $isRootNode,
+  $setSelection,
   CAN_REDO_COMMAND,
   CAN_UNDO_COMMAND,
   COMMAND_PRIORITY_CRITICAL,
@@ -71,32 +77,30 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { invariant } from "@/lib/utils";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { invariant, not, partition } from "@/lib/utils";
 import {
   INSERT_BODY_COMMAND,
   INSERT_HEADING_COMMAND,
   INSERT_QUOTE_COMMAND,
+  type SupportedHeadingTag,
 } from "../commands/block-commands";
-import { INSERT_IMAGE_COMMAND } from "../commands/node-commands";
+import { INSERT_IMAGE_COMMAND, type InsertImagePayload } from "../commands/node-commands";
 import {
   $deepCopyElementNode,
-  $getElementTag,
+  $getNodeTag,
+  $getSelectedBlockNodes,
   $getSiblingsBetween,
   $getTopLevelNode,
   $isBlockElementNode,
-  $isContainerNode,
+  $isBlockWrapperNode,
+  $isLayoutNode,
   type BlockTag,
   isSupportedBlockTag,
   isSupportedHeadingTag,
 } from "../lib/utils";
 import { $isGridItemNode } from "../nodes/grid-item-node";
+import { $isGridNode } from "../nodes/grid-node";
 import { $createImageNode } from "../nodes/image-node";
 
 function Divider() {
@@ -110,15 +114,8 @@ type ToolbarCommand<PayloadType> = {
   Icon: LucideIcon;
 };
 
-type BlockStyle =
-  | "Heading"
-  | "Subheading"
-  | "Sub-subheading"
-  | "Body"
-  | "Quote"
-  | "Bulleted List"
-  | "Numbered List";
-type BlockStyleOption = { label: BlockStyle; value: BlockTag };
+type BlockStyle = "Heading" | "Subheading" | "Sub-subheading" | "Body" | "Quote" | "Bulleted List" | "Numbered List";
+type BlockStyleOption = { label: BlockStyle | "Mixed"; value: BlockTag | "mixed" };
 
 const blockCommandMap = new Map([
   ["h2", { type: INSERT_HEADING_COMMAND, payload: "h2" }],
@@ -194,6 +191,192 @@ const alignmentButtons: ToolbarCommand<ElementFormatType>[] = [
   },
 ];
 
+function $getBodyInsertFn(): () => boolean {
+  return function insertBody(): boolean {
+    {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return false;
+
+      const blocks = $getSelectedBlockNodes(selection).filter(not($isBlockWrapperNode));
+      let endBlock: ElementNode = blocks[blocks.length - 1];
+
+      blocks.forEach((block) => {
+        if (!$isParagraphNode(block)) {
+          const blockChildren = block.getChildren().map($deepCopyElementNode);
+          const p = $createParagraphNode().append(...blockChildren);
+          if (block.is(endBlock)) endBlock = p;
+
+          block.replace(p);
+          return;
+        }
+
+        const parent = block.getParent();
+        if (!$isQuoteNode(parent)) return;
+
+        const quoteChildren = parent.getChildren().map((child) => {
+          invariant($isElementNode(child), "Child must be ElementNode");
+          const clone = $deepCopyElementNode(child);
+          if (child.is(endBlock)) endBlock = clone;
+
+          return clone;
+        });
+
+        const quoteContainer = parent.getParent();
+        invariant(quoteContainer !== null, "Quote parent must be nonnull");
+        quoteContainer.splice(parent.getIndexWithinParent(), 1, quoteChildren);
+      });
+
+      endBlock.selectEnd();
+      return true;
+    }
+  };
+}
+
+function $getHeadingInsertFn(): (payload: SupportedHeadingTag) => boolean {
+  return function insertHeading(payload: SupportedHeadingTag): boolean {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection) || !isSupportedHeadingTag(payload)) {
+      return false;
+    }
+
+    $setBlocksType(
+      selection,
+      () => $createHeadingNode(payload),
+      (node) => {
+        const child = $createTextNode(node.getTextContent());
+        node.clear();
+        node.append(child);
+        child.selectEnd();
+      },
+    );
+
+    return true;
+  };
+}
+
+function $getListInsertFn(listType: "bullet" | "number"): () => boolean {
+  return function insertList(): boolean {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) return false;
+
+    const blocks = $getSelectedBlockNodes(selection).filter(not($isBlockWrapperNode));
+
+    const startBlock = $getTopLevelNode(blocks[0]);
+    invariant($isElementNode(startBlock), "Start block must be ElementNode");
+    const container = startBlock.getParent();
+    invariant($isElementNode(container), "Container must be ElementNode");
+    const insertionIndex = startBlock.getIndexWithinParent();
+
+    let endBlock: ElementNode = blocks[blocks.length - 1];
+
+    const blocksToInsert: ListItemNode[] = [];
+
+    blocks.forEach((block) => {
+      const blockChildren = block.getChildren().map($deepCopyElementNode);
+      const li = $createListItemNode().append(...blockChildren);
+
+      if (block.is(endBlock)) endBlock = li;
+
+      block.remove();
+      blocksToInsert.push(li);
+    });
+
+    const ul = $createListNode(listType).append(...blocksToInsert);
+    container.splice(insertionIndex, 0, [ul]);
+    endBlock.selectEnd();
+
+    return true;
+  };
+}
+
+function $getQuoteInsertFn(): () => boolean {
+  return function insertQuote(): boolean {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) return false;
+
+    const keysToInsert = new Set<string>();
+    const keysToRemove = new Set<string>();
+    const keysToCleanUp = new Set<string>();
+
+    let insertionIndex: number | null = null;
+    let container: ElementNode | null = null;
+
+    for (const node of selection.getNodes()) {
+      const block = $isElementNode(node) ? node : node.getParent();
+
+      if ($isQuoteNode(block) || $isListNode(block)) {
+        keysToCleanUp.add(block.getKey());
+        continue;
+      }
+
+      invariant($isElementNode(block), "Selected block must be ElementNode");
+
+      keysToInsert.add(block.getKey());
+      keysToRemove.add(block.getKey());
+
+      if (insertionIndex === null && container === null) {
+        const topLevelBlock = $getTopLevelNode(block);
+        invariant($isElementNode(topLevelBlock), "Top-level block must be ElementNode");
+        insertionIndex = topLevelBlock.getIndexWithinParent();
+        container = topLevelBlock.getParent();
+      }
+    }
+
+    invariant(insertionIndex !== null, "Must have insertion index");
+    invariant($isElementNode(container), "Must have container");
+
+    const blocksToInsert: ElementNode[] = [];
+
+    keysToInsert.forEach((key) => {
+      const node = $getNodeByKey(key);
+      invariant($isElementNode(node), "Node to insert must be ElementNode");
+
+      blocksToInsert.push(
+        $isListItemNode(node)
+          ? $createParagraphNode().append(...node.getChildren().map($deepCopyElementNode))
+          : $deepCopyElementNode(node),
+      );
+    });
+
+    keysToRemove.forEach((key) => {
+      $getNodeByKey(key)?.remove();
+    });
+
+    keysToCleanUp.forEach((key) => {
+      const node = $getNodeByKey(key);
+      invariant($isElementNode(node), "Node to clean up must be ElementNode");
+
+      if (node.getChildrenSize() === 0) node.remove();
+    });
+
+    const quoteNode = $createQuoteNode().append(...blocksToInsert);
+    container.splice(insertionIndex, 0, [quoteNode]);
+    quoteNode.getLastChild()?.selectEnd();
+
+    return true;
+  };
+}
+
+function $getImageInsertFn(): (payload: InsertImagePayload) => boolean {
+  return function insertImage(payload: InsertImagePayload) {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) return false;
+
+    const imageNode = $createImageNode(payload.src, payload.alt, payload.width);
+    const emptyText = $createTextNode(" ");
+    const emptyParagraph = $createParagraphNode();
+    emptyParagraph.append(emptyText);
+
+    const root = $getRoot();
+    root.append(imageNode);
+    root.append(emptyParagraph);
+
+    selection.setTextNodeRange(emptyText, 0, emptyText, 0);
+
+    return true;
+  };
+}
+
 function ToolbarButton({ className, ...props }: ComponentPropsWithRef<"button">) {
   return (
     <button
@@ -204,15 +387,24 @@ function ToolbarButton({ className, ...props }: ComponentPropsWithRef<"button">)
   );
 }
 
+type ActiveSelection = {
+  formatting: Set<string>;
+  blockType: BlockTag | null;
+};
+
+const EMPTY_FORMATTING = new Set<string>();
+
+// TODO: Replace referential equality with LexicalNode.is
 export default function ToolbarPlugin() {
   const [editor] = useLexicalComposerContext();
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  const [activeTags, setActiveTags] = useState<Set<string> | null>(null);
-  // TODO: Is it better to get the block directly?
-  const [blockType, setBlockType] = useState<BlockTag>("p");
+  const [activeSelection, setActiveSelection] = useState<ActiveSelection>({
+    formatting: EMPTY_FORMATTING,
+    blockType: null,
+  });
 
   // Image add
   const [open, setOpen] = useState(false);
@@ -237,215 +429,19 @@ export default function ToolbarPlugin() {
     setImageData({ src: "", alt: "" });
   };
 
+  useEffect(() => {
+    const hasDependencies = editor.hasNodes([ListNode, ListItemNode]);
+    invariant(hasDependencies, "[ToolbarPlugin] ListNode and/or ListItemNode not registered");
+  }, [editor]);
+
   useEffect(
     () =>
       mergeRegister(
         editor.registerCommand(
-          SELECTION_CHANGE_COMMAND,
-          () => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return false;
-            const topLevelBlock = $getTopLevelNode(selection.anchor.getNode());
-            const anchorBlock = selection.anchor.getNode().getParent();
-            if ($isRootNode(anchorBlock) || $isGridItemNode(anchorBlock) || anchorBlock === null) {
-              return false;
-            }
-
-            // $1: This fucks up with the insertion commands
-            // const tag = $getElementTag(topLevelBlock);
-
-            const tag = $isListItemNode(topLevelBlock)
-              ? $getElementTag(anchorBlock.getParent())
-              : $getElementTag(anchorBlock);
-            invariant(isSupportedBlockTag(tag), "Must be supported block");
-            setBlockType(tag);
-
-            if (selection.isCollapsed()) {
-              setActiveTags(null);
-              return false;
-            }
-
-            const tags = new Set<string>();
-            if (selection.hasFormat("bold")) tags.add("bold");
-            if (selection.hasFormat("italic")) tags.add("italic");
-            if (selection.hasFormat("highlight")) tags.add("highlight");
-            if (selection.hasFormat("strikethrough")) tags.add("strikethrough");
-            if (tags.size > 0) setActiveTags(tags);
-
-            return false;
-          },
-          COMMAND_PRIORITY_NORMAL,
-        ),
-        editor.registerCommand(
-          INSERT_HEADING_COMMAND,
-          (payload) => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection) || !isSupportedHeadingTag(payload)) {
-              return false;
-            }
-
-            editor.update(() =>
-              $setBlocksType(
-                selection,
-                () => $createHeadingNode(payload),
-                (node) => {
-                  const child = $createTextNode(node.getTextContent());
-                  node.clear();
-                  node.append(child);
-                  child.selectEnd();
-                },
-              ),
-            );
-
-            return true;
-          },
-          COMMAND_PRIORITY_NORMAL,
-        ),
-        editor.registerCommand(
-          INSERT_IMAGE_COMMAND,
-          (payload) => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return false;
-
-            const imageNode = $createImageNode(payload.src, payload.alt, payload.width);
-            const emptyText = $createTextNode(" ");
-            const emptyParagraph = $createParagraphNode();
-            emptyParagraph.append(emptyText);
-
-            const root = $getRoot();
-            root.append(imageNode);
-            root.append(emptyParagraph);
-
-            selection.setTextNodeRange(emptyText, 0, emptyText, 0);
-
-            return true;
-          },
-          COMMAND_PRIORITY_NORMAL,
-        ),
-        editor.registerCommand(
-          INSERT_BODY_COMMAND,
-          () => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return false;
-
-            const selectionEdgePoints = selection.getStartEndPoints();
-            invariant(selectionEdgePoints, "Must have selection edge points");
-
-            const [anchorBlock, focusBlock] = selectionEdgePoints
-              .map((point) => $getNodeByKey(point.key))
-              .map((node) => node?.getParent());
-            invariant($isBlockElementNode(anchorBlock), "anchorBlock must be ElementNode");
-            invariant($isBlockElementNode(focusBlock), "focusBlock must be ElementNode");
-
-            const selectedBlocks = $getSiblingsBetween(anchorBlock, focusBlock);
-
-            const blockKeysToRemove = new Set<string>();
-
-            selectedBlocks.forEach((block) => {
-              invariant($isBlockElementNode(block), "Selected block must be ElementNode");
-              const blockParent = block.getParent();
-              invariant($isElementNode(blockParent), "Block parent must be ElementNode");
-
-              if (!$isParagraphNode(block)) {
-                const blockChildren = block.getChildren().map($deepCopyElementNode);
-                block.replace($createParagraphNode().append(...blockChildren));
-              }
-
-              if ($isQuoteNode(blockParent)) blockKeysToRemove.add(blockParent.getKey());
-            });
-
-            // BUG: Inside GridItem, removing QuoteNode triggers error; probably caused by $1
-            blockKeysToRemove.forEach((key) => {
-              const block = $getNodeByKey(key);
-              invariant($isElementNode(block), "Node to remove must be ElementNode");
-
-              const blockChildren = block.getChildren().map($deepCopyElementNode);
-              const blockParent = block.getParent();
-              invariant($isElementNode(blockParent), "Block parent must be ElementNode");
-
-              blockParent.splice(block.getIndexWithinParent(), 1, blockChildren);
-            });
-
-            return true;
-          },
-          COMMAND_PRIORITY_NORMAL,
-        ),
-        editor.registerCommand(
-          INSERT_QUOTE_COMMAND,
-          () => {
-            const selection = $getSelection();
-            if (!$isRangeSelection(selection)) return false;
-
-            editor.update(() => {
-              const keysToInsert = new Set<string>();
-              const keysToRemove = new Set<string>();
-              const keysToCleanUp = new Set<string>();
-
-              let insertionIndex: number | null = null;
-              let container: ElementNode | null = null;
-
-              for (const node of selection.getNodes()) {
-                const block = $isBlockElementNode(node) ? node : node.getParent();
-
-                if ($isQuoteNode(block) || $isListNode(block)) {
-                  keysToCleanUp.add(block.getKey());
-                  continue;
-                }
-
-                invariant($isBlockElementNode(block), "Selected block must be ElementNode");
-
-                keysToInsert.add(block.getKey());
-                keysToRemove.add(block.getKey());
-
-                if (insertionIndex === null && container === null) {
-                  const topLevelBlock = $getTopLevelNode(block);
-                  invariant($isElementNode(topLevelBlock), "Top-level block must be ElementNode");
-                  insertionIndex = topLevelBlock.getIndexWithinParent();
-                  container = topLevelBlock.getParent();
-                }
-              }
-
-              invariant(insertionIndex !== null, "Must have insertion index");
-              invariant($isElementNode(container), "Must have container");
-
-              const blocksToInsert: ElementNode[] = [];
-
-              keysToInsert.forEach((key) => {
-                const node = $getNodeByKey(key);
-                invariant($isElementNode(node), "Node to insert must be ElementNode");
-
-                blocksToInsert.push(
-                  $isListItemNode(node)
-                    ? $createParagraphNode().append(...node.getChildren().map($deepCopyElementNode))
-                    : $deepCopyElementNode(node),
-                );
-              });
-
-              keysToRemove.forEach((key) => {
-                $getNodeByKey(key)?.remove();
-              });
-
-              keysToCleanUp.forEach((key) => {
-                const node = $getNodeByKey(key);
-                invariant($isElementNode(node), "Node to clean up must be ElementNode");
-
-                if (node.getChildrenSize() === 0) node.remove();
-              });
-
-              const quoteNode = $createQuoteNode().append(...blocksToInsert);
-              container.splice(insertionIndex, 0, [quoteNode]);
-              quoteNode.getLastChild()?.selectEnd();
-            });
-
-            return true;
-          },
-          COMMAND_PRIORITY_NORMAL,
-        ),
-        editor.registerCommand(
           CAN_UNDO_COMMAND,
           (payload) => {
             setCanUndo(payload);
-            return false;
+            return true;
           },
           COMMAND_PRIORITY_NORMAL,
         ),
@@ -453,10 +449,61 @@ export default function ToolbarPlugin() {
           CAN_REDO_COMMAND,
           (payload) => {
             setCanRedo(payload);
-            return false;
+            return true;
           },
           COMMAND_PRIORITY_NORMAL,
         ),
+        editor.registerCommand(
+          SELECTION_CHANGE_COMMAND,
+          () => {
+            const selection = $getSelection();
+            if (!$isRangeSelection(selection)) return false;
+            console.log(`selection: `, selection);
+
+            const topLevelBlocksKeys = new Set<string>();
+            const topLevelBlocks: ElementNode[] = [];
+
+            $getSelectedBlockNodes(selection).forEach((block) => {
+              const topLevelBlock = $getTopLevelNode(block);
+              invariant($isElementNode(topLevelBlock), "Top-level block must be ElementNode");
+              const blockKey = topLevelBlock.getKey();
+
+              if (!topLevelBlocksKeys.has(blockKey)) {
+                topLevelBlocksKeys.add(blockKey);
+                topLevelBlocks.push(topLevelBlock);
+              }
+            });
+
+            const blockTags = new Set<BlockTag>();
+            topLevelBlocks.forEach((block) => {
+              const tag = $getNodeTag(block);
+              invariant(isSupportedBlockTag(tag), `Tag "${tag} is not BlockTag"`);
+              blockTags.add(tag);
+            });
+            const blockType = blockTags.size === 1 ? (blockTags.values().next().value ?? null) : null;
+
+            if (selection.isCollapsed()) {
+              setActiveSelection({ blockType, formatting: EMPTY_FORMATTING });
+              return true;
+            }
+
+            const formatTags = new Set<string>();
+            if (selection.hasFormat("bold")) formatTags.add("bold");
+            if (selection.hasFormat("italic")) formatTags.add("italic");
+            if (selection.hasFormat("highlight")) formatTags.add("highlight");
+            if (selection.hasFormat("strikethrough")) formatTags.add("strikethrough");
+
+            setActiveSelection({ blockType, formatting: formatTags.size > 0 ? formatTags : EMPTY_FORMATTING });
+            return true;
+          },
+          COMMAND_PRIORITY_NORMAL,
+        ),
+        editor.registerCommand(INSERT_HEADING_COMMAND, $getHeadingInsertFn(), COMMAND_PRIORITY_NORMAL),
+        editor.registerCommand(INSERT_BODY_COMMAND, $getBodyInsertFn(), COMMAND_PRIORITY_NORMAL),
+        editor.registerCommand(INSERT_QUOTE_COMMAND, $getQuoteInsertFn(), COMMAND_PRIORITY_NORMAL),
+        editor.registerCommand(INSERT_UNORDERED_LIST_COMMAND, $getListInsertFn("bullet"), COMMAND_PRIORITY_NORMAL),
+        editor.registerCommand(INSERT_ORDERED_LIST_COMMAND, $getListInsertFn("number"), COMMAND_PRIORITY_NORMAL),
+        editor.registerCommand(INSERT_IMAGE_COMMAND, $getImageInsertFn(), COMMAND_PRIORITY_NORMAL),
       ),
     [editor],
   );
@@ -484,9 +531,9 @@ export default function ToolbarPlugin() {
       <Select
         items={blockStyle}
         aria-label="Select text style"
-        value={blockType}
+        value={activeSelection.blockType}
         onValueChange={(value) => {
-          if (!value || value === blockType) return;
+          if (!value || value === activeSelection.blockType) return;
 
           const command = blockCommandMap.get(value);
           if (!command) throw new Error("Must have registerd command");
@@ -495,7 +542,7 @@ export default function ToolbarPlugin() {
         }}
       >
         <SelectTrigger size="sm" className="w-8">
-          <SelectValue />
+          {activeSelection.blockType !== null ? <SelectValue /> : "Mixed"}
         </SelectTrigger>
         <SelectPopup alignItemWithTrigger={false}>
           {blockStyle.map(({ label, value }) => (
@@ -512,7 +559,7 @@ export default function ToolbarPlugin() {
         <ToolbarButton
           key={payload}
           aria-label={label}
-          className={activeTags?.has(payload) ? "bg-zinc-200" : ""}
+          className={activeSelection.formatting.has(payload) ? "bg-zinc-200" : ""}
           onClick={() => editor.dispatchCommand(type, payload)}
         >
           <Icon className="size-4 text-zinc-800" />
@@ -522,11 +569,7 @@ export default function ToolbarPlugin() {
       <Divider />
 
       {alignmentButtons.map(({ type, payload, Icon, label }) => (
-        <ToolbarButton
-          key={payload}
-          aria-label={label}
-          onClick={() => editor.dispatchCommand(type, payload)}
-        >
+        <ToolbarButton key={payload} aria-label={label} onClick={() => editor.dispatchCommand(type, payload)}>
           <Icon className="size-4 text-zinc-800" />
         </ToolbarButton>
       ))}

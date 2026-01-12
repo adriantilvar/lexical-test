@@ -31,7 +31,7 @@ import { createPortal } from "react-dom";
 import { cn, invariant } from "@/lib/utils";
 import {
   $deepCopyElementNode as $deepCopyNode,
-  $getElementTag,
+  $getNodeTag,
   $getParentGridNode,
   $isBlockElementNode,
   $removeNodeWithGridPruning,

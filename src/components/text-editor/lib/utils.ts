@@ -2,12 +2,14 @@ import { $isListItemNode, $isListNode } from "@lexical/list";
 import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";
 import {
   $copyNode,
+  $getNodeByKey,
   $isElementNode,
   $isLineBreakNode,
   $isParagraphNode,
   $isRootNode,
   type ElementNode,
   type LexicalNode,
+  type RangeSelection,
 } from "lexical";
 import { invariant } from "@/lib/utils";
 import type { SupportedHeadingTag } from "../commands/block-commands";
@@ -28,14 +30,14 @@ export function isSupportedBlockTag(tag: string | null): tag is BlockTag {
   return tag !== null && blockTagSet.has(tag);
 }
 
-export function $getElementTag(node: ElementNode | ImageNode | null): string | null {
+export function $getNodeTag(node: LexicalNode | null): string | null {
   if (node === null) return null;
 
   if ($isParagraphNode(node)) return "p";
-  if ($isListItemNode(node)) return "li";
   if ($isHeadingNode(node)) return node.getTag();
-  if ($isQuoteNode(node)) return "blockquote";
+  if ($isListItemNode(node)) return "li";
   if ($isListNode(node)) return node.getTag();
+  if ($isQuoteNode(node)) return "blockquote";
   if ($isImageNode(node)) return "img";
 
   throw new Error("Unsupported element type");
@@ -74,6 +76,24 @@ export function $isBlockElementNode(node: unknown): node is ElementNode {
   return isLexicalNode(node) && $isElementNode(node) && !node.isInline();
 }
 
+export function $getSelectedBlockNodes(selection: RangeSelection): ElementNode[] {
+  const selectedBlocksKeys = new Set<string>();
+  const selectedBlocks: ElementNode[] = [];
+
+  selection.getNodes().forEach((node) => {
+    const block = $isElementNode(node) ? node : node.getParent();
+    invariant(block !== null, "Block must be nonnull");
+    const blockKey = block.getKey();
+
+    if (!selectedBlocksKeys.has(blockKey)) {
+      selectedBlocks.push(block);
+      selectedBlocksKeys.add(blockKey);
+    }
+  });
+
+  return selectedBlocks;
+}
+
 export function $deepCopyElementNode<T extends LexicalNode>(node: T): T {
   if (!$isElementNode(node)) return $copyNode(node);
 
@@ -87,22 +107,26 @@ export function $deepCopyElementNode<T extends LexicalNode>(node: T): T {
 
 export function $getImmediateBlockNode(node: LexicalNode): ElementNode | null {
   let currentNode: LexicalNode | null = node;
-  while (currentNode && !$isBlockElementNode(currentNode)) {
+  while (currentNode && !$isElementNode(currentNode)) {
     currentNode = currentNode.getParent();
   }
 
   return currentNode;
 }
 
-export function $isContainerNode(node: LexicalNode | null): boolean {
+export function $isLayoutNode(node: LexicalNode | null): boolean {
   return $isRootNode(node) || $isGridItemNode(node) || $isGridNode(node);
+}
+
+export function $isBlockWrapperNode(node: LexicalNode | null): boolean {
+  return $isQuoteNode(node) || $isListNode(node);
 }
 
 export function $getTopLevelNode(node: LexicalNode): LexicalNode | null {
   let currentNode: LexicalNode | null = node;
   while (currentNode) {
     const parent: ElementNode | null = currentNode.getParent();
-    if ($isContainerNode(parent)) return currentNode;
+    if ($isLayoutNode(parent)) return currentNode;
 
     currentNode = parent;
   }
