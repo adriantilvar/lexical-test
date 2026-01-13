@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { GridItemNode } from "./nodes/grid-item-node";
 import { GridNode } from "./nodes/grid-node";
 import { ImageNode } from "./nodes/image-node";
+import { $createRichParagraphNode, RichParagraphNode } from "./nodes/rich-paragraph-node";
 import { $createRichTextNode, RichTextNode } from "./nodes/rich-text-node";
 import { DragAndDropPlugin } from "./plugins/drag-and-drop-plugin";
 import { LimitedHistoryPlugin } from "./plugins/history-plugin";
@@ -27,7 +28,12 @@ const nodes = [
     with: (node: TextNode) => $createRichTextNode(node.getTextContent()),
     withKlass: RichTextNode,
   },
-  ParagraphNode,
+  RichParagraphNode,
+  {
+    replace: ParagraphNode,
+    with: () => $createRichParagraphNode(),
+    withKlass: RichParagraphNode,
+  },
   HeadingNode,
   QuoteNode,
   GridNode,
@@ -43,16 +49,10 @@ function onError(error: Error) {
   console.error(error);
 }
 
-function TextEditor({
-  initialContent,
-  className,
-}: {
-  initialContent: Promise<string>;
-  className?: string;
-}) {
-  const content = use(initialContent);
+function TextEditor({ className }: { initialContent: Promise<string>; className?: string }) {
+  // const content = use(initialContent);
   const initialConfig = {
-    editorState: () => $convertFromMarkdownString(content, TRANSFORMERS),
+    editorState: localStorage.getItem("lexical-editor-state"),
     namespace: "TextEditor",
     nodes,
     theme,
@@ -70,7 +70,7 @@ function TextEditor({
                 className="outline-none px-8 py-6"
                 aria-placeholder={"You can start typing..."}
                 placeholder={
-                  <div className="absolute left-4 top-3 select-none pointer-events-none text-zinc-400">
+                  <div className="absolute left-8.5 top-6 select-none pointer-events-none text-zinc-400">
                     You can start typing...
                   </div>
                 }

@@ -1,9 +1,4 @@
-import {
-  $create,
-  type EditorConfig,
-  type LexicalNode,
-  TextNode,
-} from "lexical";
+import { $create, type EditorConfig, type LexicalNode, TextNode } from "lexical";
 
 export class RichTextNode extends TextNode {
   $config() {
@@ -51,8 +46,6 @@ export function $createRichTextNode(text: string): RichTextNode {
   return $create(RichTextNode).setTextContent(text);
 }
 
-export function $isRichTextNode(
-  node: LexicalNode | null | undefined,
-): node is RichTextNode {
+export function $isRichTextNode(node: LexicalNode | null | undefined): node is RichTextNode {
   return node instanceof RichTextNode;
 }

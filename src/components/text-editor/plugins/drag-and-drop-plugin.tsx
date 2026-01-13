@@ -44,6 +44,7 @@ import {
 import { $createGridItemNode, $isGridItemNode, GridItemNode } from "../nodes/grid-item-node";
 import { $createGridNode, $isGridNode, GridNode } from "../nodes/grid-node";
 import { $isImageNode, ImageNode } from "../nodes/image-node";
+import { RichParagraphNode } from "../nodes/rich-paragraph-node";
 
 type CleanupFn = () => void;
 type Edge = "top" | "right" | "bottom" | "left";
@@ -197,12 +198,10 @@ export function DragAndDropPlugin() {
     const element = editor.getElementByKey(nodeKey);
     invariant(element !== null, "Element must not be null");
 
+    // TODO: This should be added on node creation, not here
     if ($isBlockElementNode(lexicalBlock)) element.classList.add("lexical-block");
 
-    invariant(
-      $isBlockElementNode(lexicalBlock) || $isImageNode(lexicalBlock),
-      "Must be ElementNode or ImageNode",
-    );
+    invariant($isBlockElementNode(lexicalBlock) || $isImageNode(lexicalBlock), "Must be ElementNode or ImageNode");
 
     invariant(dropTargetRegistry.current !== null, "Must have drop target registry");
     dropTargetRegistry.current.set(nodeKey, makeDropTarget(element, { lexicalBlock }));
@@ -249,13 +248,7 @@ export function DragAndDropPlugin() {
                   previewContainer: container,
                   previewComponent: (
                     // biome-ignore lint/performance/noImgElement: TODO: Optimize image
-                    <img
-                      className="p-1.5"
-                      src={img.src}
-                      alt={`${img.alt}-preview`}
-                      width={100}
-                      height="auto"
-                    />
+                    <img className="p-1.5" src={img.src} alt={`${img.alt}-preview`} width={100} height="auto" />
                   ),
                 };
               }
@@ -264,9 +257,7 @@ export function DragAndDropPlugin() {
                 return {
                   type: "preview",
                   previewContainer: container,
-                  previewComponent: (
-                    <div className="p-1.5 text-lg">{dragMenuAnchorRef.current.textContent}</div>
-                  ),
+                  previewComponent: <div className="p-1.5 text-lg">{dragMenuAnchorRef.current.textContent}</div>,
                 };
               }
 
@@ -289,15 +280,9 @@ export function DragAndDropPlugin() {
           if (!dropTarget) return;
 
           const sourceNode = source.data.lexicalBlock;
-          invariant(
-            $isBlockElementNode(sourceNode) || $isImageNode(sourceNode),
-            "Must be ElementNode or ImageNode",
-          );
+          invariant($isBlockElementNode(sourceNode) || $isImageNode(sourceNode), "Must be ElementNode or ImageNode");
           const targetNode = dropTarget.data.lexicalBlock;
-          invariant(
-            $isBlockElementNode(targetNode) || $isImageNode(targetNode),
-            "Must be ElementNode or ImageNode",
-          );
+          invariant($isBlockElementNode(targetNode) || $isImageNode(targetNode), "Must be ElementNode or ImageNode");
 
           if (sourceNode.getKey() === targetNode.getKey()) return;
 
@@ -417,10 +402,15 @@ export function DragAndDropPlugin() {
           root.addEventListener("mousemove", onMouseMove);
           root.addEventListener("mouseleave", onMouseLeave);
         }),
-        editor.registerMutationListener(ParagraphNode, (mutations) => {
+        editor.registerMutationListener(RichParagraphNode, (mutations) => {
           for (const [nodeKey, mutation] of mutations) {
             if (mutation === "created") registerDropTarget(nodeKey);
-            else if (mutation === "destroyed") deregisterDropTarget(nodeKey);
+            else if (mutation === "updated") {
+              // TODO: Think about a better way to handle This
+              // Context: When I'm changing the data-text-color, p gets recreated so it loses data-drop-target-for-element
+              deregisterDropTarget(nodeKey);
+              registerDropTarget(nodeKey);
+            } else if (mutation === "destroyed") deregisterDropTarget(nodeKey);
           }
         }),
         editor.registerMutationListener(HeadingNode, (mutations) => {
@@ -471,9 +461,7 @@ export function DragAndDropPlugin() {
         </Popover.Portal>
       </Popover.Root>
 
-      {dragState.type === "preview"
-        ? createPortal(dragState.previewComponent, dragState.previewContainer)
-        : null}
+      {dragState.type === "preview" ? createPortal(dragState.previewComponent, dragState.previewContainer) : null}
     </>
   );
 }

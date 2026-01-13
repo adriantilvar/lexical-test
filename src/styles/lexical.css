@@ -37,7 +37,6 @@
 
     &[data-lexical-bold] {
       font-weight: var(--font-weight-semibold);
-      color: var(--prose-strong-color);
     }
 
     &[data-lexical-strikethrough] {
@@ -150,7 +149,49 @@
   }
 }
 
+.lexical-block {
+  &[data-text-color="zinc"] {
+    color: var(--color-zinc-900);
+  }
+  &[data-text-color="orange"] {
+    color: var(--color-orange-900);
+  }
+  &[data-text-color="yellow"] {
+    color: var(--color-yellow-900);
+  }
+  &[data-text-color="green"] {
+    color: var(--color-green-900);
+  }
+  &[data-text-color="emerald"] {
+    color: var(--color-emerald-900);
+  }
+  &[data-text-color="cyan"] {
+    color: var(--color-cyan-900);
+  }
+  &[data-text-color="blue"] {
+    color: var(--color-blue-900);
+  }
+  &[data-text-color="violet"] {
+    color: var(--color-violet-900);
+  }
+  &[data-text-color="purple"] {
+    color: var(--color-purple-900);
+  }
+  &[data-text-color="fuchsia"] {
+    color: var(--color-fuchsia-900);
+  }
+  &[data-text-color="rose"] {
+    color: var(--color-rose-900);
+  }
+  &[data-text-color="red"] {
+    color: var(--color-red-900);
+  }
+}
+
 .lexical-image-wrapper {
+  display: flex;
+  justify-content: center;
+
   img {
     border-radius: var(--radius-xl);
   }

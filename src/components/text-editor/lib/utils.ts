@@ -12,10 +12,30 @@ import {
   type RangeSelection,
 } from "lexical";
 import { invariant } from "@/lib/utils";
-import type { SupportedHeadingTag } from "../commands/block-commands";
+import type { SupportedHeadingTag, SupportedTextColor } from "../commands/block-commands";
 import { $isGridItemNode } from "../nodes/grid-item-node";
 import { $isGridNode, type GridNode } from "../nodes/grid-node";
 import { $isImageNode, type ImageNode } from "../nodes/image-node";
+import { $isRichParagraphNode } from "../nodes/rich-paragraph-node";
+
+export const SUPPORTED_TEXT_COLORS = [
+  "zinc",
+  "orange",
+  "yellow",
+  "green",
+  "emerald",
+  "cyan",
+  "blue",
+  "violet",
+  "purple",
+  "fuchsia",
+  "rose",
+  "red",
+] as const;
+const textColorSet = new Set<string>(SUPPORTED_TEXT_COLORS);
+export function isSupportedTextColor(color: unknown): color is SupportedTextColor {
+  return typeof color === "string" && textColorSet.has(color);
+}
 
 export function isSupportedHeadingTag(tag: string): tag is SupportedHeadingTag {
   return /^h[2-4]$/.test(tag);
@@ -33,7 +53,7 @@ export function isSupportedBlockTag(tag: string | null): tag is BlockTag {
 export function $getNodeTag(node: LexicalNode | null): string | null {
   if (node === null) return null;
 
-  if ($isParagraphNode(node)) return "p";
+  if ($isRichParagraphNode(node)) return "p";
   if ($isHeadingNode(node)) return node.getTag();
   if ($isListItemNode(node)) return "li";
   if ($isListNode(node)) return node.getTag();
@@ -64,12 +84,7 @@ export function isQuoteElement(element: unknown): element is HTMLQuoteElement {
 }
 
 export function isLexicalNode(node: unknown): node is LexicalNode {
-  return (
-    node !== null &&
-    node !== undefined &&
-    Object.hasOwn(node, "__key") &&
-    Object.hasOwn(node, "__type")
-  );
+  return node !== null && node !== undefined && Object.hasOwn(node, "__key") && Object.hasOwn(node, "__type");
 }
 
 export function $isBlockElementNode(node: unknown): node is ElementNode {
