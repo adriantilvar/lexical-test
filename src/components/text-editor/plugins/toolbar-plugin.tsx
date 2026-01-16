@@ -563,7 +563,7 @@ export default function ToolbarPlugin() {
           editor.dispatchCommand(command.type, command.payload);
         }}
       >
-        <SelectTrigger size="sm" className="w-8">
+        <SelectTrigger size="sm" className={"w-8"}>
           {activeSelection.blockType !== null ? <SelectValue /> : "Mixed"}
         </SelectTrigger>
         <SelectPopup alignItemWithTrigger={false}>

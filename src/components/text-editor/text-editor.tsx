@@ -49,7 +49,7 @@ function onError(error: Error) {
   console.error(error);
 }
 
-function TextEditor({ className }: { initialContent: Promise<string>; className?: string }) {
+function TextEditor({ className }: { initialContent: Promise<string>; className?: string | (() => string) }) {
   // const content = use(initialContent);
   const initialConfig = {
     editorState: localStorage.getItem("lexical-editor-state"),
